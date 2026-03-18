@@ -282,7 +282,7 @@ function LiveTradingPanel() {
         {!isRunning ? (
           <Button
             onClick={() => startLive.mutate({ leverage, testnet, dry_run: dryRun })}
-            disabled={!isEngineOnline || !isAuthenticated || startLive.isPending}
+            disabled={!isEngineOnline || startLive.isPending}
             className="w-full bg-green-600 hover:bg-green-700 text-white"
           >
             {startLive.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
