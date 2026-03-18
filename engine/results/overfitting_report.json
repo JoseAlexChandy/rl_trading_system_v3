@@ -1,0 +1,19 @@
+{
+  "action_analysis": {
+    "distribution": {
+      "flat": 0,
+      "long": 3425,
+      "short": 3949
+    },
+    "max_single_action_pct": 53.6,
+    "is_degenerate": false,
+    "verdict": "OK \u2014 agent uses multiple actions"
+  },
+  "random_baseline": {
+    "random_avg_roi": -98.02,
+    "random_avg_wr": 43.7,
+    "random_avg_trades": 1189.0,
+    "agent_roi": 1859479.87,
+    "agent_wr": 61.8,
+    "wr_gap": 18.0,
+    "is_env_biased": 

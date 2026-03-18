@@ -1,0 +1,26 @@
+V4 Training Analysis Notes
+==========================
+Training Progress Chart:
+- Equity per episode: average hovers around $10 (initial), spikes up to $17 occasionally
+- Episode reward: converges from -4000 to near 0 (good convergence)
+- Win rate: fluctuates 30-80%, moving average ~50-55%
+- Trades per episode: drops from 30+ to 5-7 (good selectivity learned)
+- The agent learned to be selective but not profitable enough
+
+Test Evaluation Chart:
+- BTCUSDT: -5.1% ROI, 6 trades, 33% WR (B&H +10.6%)
+- XAUUSD: +1.9% ROI, 2 trades, 50% WR (B&H +112.9%)
+- NASDAQ: -6.4% ROI, 8 trades, 38% WR (B&H +33.6%)
+- SP500: -15.9% ROI, 2 trades, 0% WR (B&H +27.1%)
+
+Key Problems:
+1. Win rate drops from training (55%) to test (33-50%) = overfitting
+2. Too few trades on test = agent too conservative on unseen data
+3. Reward is negative (large negative values) = reward function penalizes too much
+4. Online learning makes things worse (-3.8% improvement)
+
+Root Causes:
+- Z-score normalization computed on training data doesn't transfer to test
+- Signal thresholds are too rigid (hardcoded >1.5 score)
+- PPO with sparse rewards (few trades) has high variance
+- Need: rolling normalization, adaptive thresholds, more robust training

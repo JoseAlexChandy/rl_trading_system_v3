@@ -1,0 +1,9 @@
+Dashboard looks great:
+- Dark theme with green accent
+- Header: RL Trading System v2.0 PPO+LSTM, Engine Offline indicator, user logged in
+- 4 metric cards: Portfolio Value $10.00, Total P&L +$0.00, Win Rate 0.0%, Max Drawdown 0.0%
+- Tabs: Dashboard | Training Report
+- Equity Curve placeholder, Agent Control with Load Data/Train Agent/Backup to S3/Live Trade buttons
+- Engine Offline warning with command to start
+- LLM Sentiment Analysis panel visible
+- Need to check Training Report tab via browser
