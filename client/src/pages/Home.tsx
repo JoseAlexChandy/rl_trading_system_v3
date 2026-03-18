@@ -374,7 +374,7 @@ function TelegramPanel() {
           </div>
           <Button
             onClick={() => testMessage.mutate({ message: "🤖 RL Trading Bot — Test Signal\n\n📊 BTCUSDT | LONG\n💰 Entry: $84,500\n🎯 TP: $87,000 (+2.96%)\n🛑 SL: $83,000 (-1.78%)\n⚡ Leverage: 7x\n📈 Confidence: 78%\n\nThis is a test message." })}
-            disabled={!isAuthenticated || testMessage.isPending}
+            disabled={testMessage.isPending}
             variant="outline" className="w-full" size="sm"
           >
             {testMessage.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}

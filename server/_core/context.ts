@@ -13,11 +13,15 @@ export async function createContext(
 ): Promise<TrpcContext> {
   let user: User | null = null;
 
-  try {
-    user = await sdk.authenticateRequest(opts.req);
-  } catch (error) {
-    // Authentication is optional for public procedures.
-    user = null;
+  // DEV BYPASS: auto-authenticate in development
+  if (process.env.NODE_ENV === 'development') {
+    user = { id: 1, openId: 'dev-user', name: 'Dev User', email: 'dev@localhost', loginMethod: 'dev', lastSignedIn: new Date() } as any;
+  } else {
+    try {
+      user = await sdk.authenticateRequest(opts.req);
+    } catch (error) {
+      user = null;
+    }
   }
 
   return {

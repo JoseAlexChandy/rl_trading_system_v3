@@ -26,7 +26,7 @@ import telegram
 
 # Local engine
 sys.path.insert(0, os.path.dirname(__file__))
-from data_pipeline import load_btc_multitf, compute_indicators_for_df
+from data_pipeline import load_btc_multitf, build_features as compute_indicators_for_df
 from trading_env import TradingEnv, N_ACTIONS, ACTIONS
 from ppo_lstm_agent import PPOAgent
 
@@ -308,8 +308,12 @@ class BinanceLiveTrader:
                 # Open new position
                 notional = balance * self.leverage * MAX_POSITION_PCT
                 quantity = round(notional / price, 3)
-                # Ensure minimum order size
-                if quantity < 0.001:
+                # Ensure minimum order size ($100 notional minimum on Binance)
+                min_qty = round(100.0 / price + 0.001, 3)
+                if quantity < min_qty:
+                    quantity = min_qty
+                    logger.info(f"Adjusted to minimum order size: {quantity} BTC (${quantity*price:.2f} notional)")
+                if False:
                     logger.warning(f"Order too small: {quantity} BTC (${notional:.2f} notional)")
                     return None
 
