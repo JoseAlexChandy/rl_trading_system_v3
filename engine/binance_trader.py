@@ -47,7 +47,7 @@ HIDDEN = 256
 SYMBOL = "BTCUSDT"
 DEFAULT_LEVERAGE = 7
 TRADE_INTERVAL_SECONDS = 3600  # 1 hour (matches 1h candles)
-MAX_POSITION_PCT = 1.0  # Use 100% of balance (as per user's strategy)
+MAX_POSITION_PCT = 0.1  # Use 10% of balance per trade
 
 
 class TelegramSignalBot:
@@ -55,7 +55,9 @@ class TelegramSignalBot:
 
     def __init__(self, token: str, chat_id: str):
         self.bot = telegram.Bot(token=token) if token else None
-        self.chat_id = chat_id
+        # Support multiple chat IDs separated by commas
+        self.chat_ids = [c.strip() for c in chat_id.split(",")] if chat_id else []
+        self.chat_id = self.chat_ids[0] if self.chat_ids else ""
         self.enabled = bool(token and chat_id)
         if self.enabled:
             logger.info(f"Telegram bot initialized for chat {chat_id}")
@@ -105,13 +107,15 @@ class TelegramSignalBot:
             else:
                 msg = f"ℹ️ {json.dumps(signal, indent=2)}"
 
-            await self.bot.send_message(
-                chat_id=self.chat_id,
+            for cid in self.chat_ids:
+              await self.bot.send_message(
+                chat_id=cid,
                 text=msg,
                 parse_mode="Markdown",
             )
             logger.info(f"Telegram signal sent: {action} {side}")
         except Exception as e:
+            logger.error(f"[ORDER ERROR] {type(e).__name__}: {e}", exc_info=True)
             logger.error(f"Telegram send failed: {e}")
 
     async def send_status(self, text: str):
@@ -119,7 +123,8 @@ class TelegramSignalBot:
         if not self.enabled:
             return
         try:
-            await self.bot.send_message(chat_id=self.chat_id, text=text)
+            for cid in self.chat_ids:
+                await self.bot.send_message(chat_id=cid, text=text)
         except Exception as e:
             logger.error(f"Telegram status send failed: {e}")
 
@@ -157,7 +162,10 @@ class BinanceLiveTrader:
         self.total_trades = 0
         self.winning_trades = 0
         self.trade_history = []
-        self.initial_balance = 0.0
+        self.initial_balance = -1.0  # -1 means not yet started
+        self._last_features = None
+        self._last_prices = None
+        self._expected_features = 74  # model trained on 74 features
 
         # Binance client
         if testnet:
@@ -234,13 +242,20 @@ class BinanceLiveTrader:
         """Fetch latest candle data and compute features."""
         try:
             features, prices, feat_names = load_btc_multitf()
+            if features.shape[1] != self._expected_features:
+                logger.warning(f"Feature shape mismatch: got {features.shape[1]}, expected {self._expected_features}. Using cached data.")
+                if self._last_features is not None:
+                    return self._last_features, self._last_prices, []
             self._last_features = features
             self._last_prices = prices
             logger.info(f"Features updated: {features.shape}, latest price ${prices[-1]:,.2f}")
             return features, prices, feat_names
         except Exception as e:
             logger.error(f"Failed to fetch features: {e}")
-            return self._last_features, self._last_prices, []
+            if self._last_features is not None:
+                logger.warning("Using cached features from last successful fetch")
+                return self._last_features, self._last_prices, []
+            return None, None, []
 
     def _get_observation(self, features, prices, step_idx) -> np.ndarray:
         """Build the observation vector matching the v9 env format."""
@@ -493,6 +508,9 @@ class BinanceLiveTrader:
             f"Mode: {'TESTNET' if self.testnet else 'LIVE'}"
         )
 
+        # Pre-seed feature cache with startup data
+        logger.info("Pre-seeding feature cache...")
+        self._fetch_latest_features()
         self.running = True
         while self.running:
             try:
@@ -521,7 +539,7 @@ class BinanceLiveTrader:
             "dry_run": self.dry_run,
             "balance": balance,
             "initial_balance": self.initial_balance,
-            "roi_pct": (balance - self.initial_balance) / max(self.initial_balance, 0.01) * 100,
+            "roi_pct": (balance - self.initial_balance) / self.initial_balance * 100 if self.initial_balance > 0 else 0.0,
             "current_position": self.current_position,
             "entry_price": self.entry_price,
             "total_trades": self.total_trades,
