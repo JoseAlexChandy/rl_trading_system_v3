@@ -382,12 +382,9 @@ class BinanceLiveTrader:
             close_result = await self._place_order("", close=True)
             if close_result is None:
                 logger.error("Close order failed! Skipping state update — will retry next cycle.")
-                import asyncio
-                asyncio.get_event_loop().run_until_complete(
-                    self.telegram.send_status(
-                        f"⚠️ Failed to close position!\n"
-                        f"Will retry next cycle."
-                    )
+                await self.telegram.send_status(
+                    f"⚠️ Failed to close position!\n"
+                    f"Will retry next cycle."
                 )
                 return
 
@@ -434,7 +431,14 @@ class BinanceLiveTrader:
         # Open new position
         if desired != 0:
             side_str = "LONG" if desired == 1 else "SHORT"
-            await self._place_order(side_str, close=False)
+            open_result = await self._place_order(side_str, close=False)
+            if open_result is None:
+                logger.error("Open order failed! Not updating state.")
+                await self.telegram.send_status(
+                    f"⚠️ Failed to open {side_str} position!\n"
+                    f"Will retry next cycle."
+                )
+                return
 
             self.current_position = desired
             self.entry_price = price
