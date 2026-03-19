@@ -317,7 +317,14 @@ class BinanceLiveTrader:
                         quantity=abs(pos["amount"]),
                         reduceOnly=True,
                     )
-                    logger.info(f"Position closed: {order}")
+                    order_id = order.get("orderId")
+                    import asyncio
+                    filled = await self._verify_order_filled(order_id)
+                    if not filled:
+                        logger.error(f"Close order {order_id} did not fill! Not updating internal state.")
+                        await self.telegram.send_status(f"⚠️ Close order failed to fill! Order ID: {order_id}")
+                        return None
+                    logger.info(f"Position closed and verified: {order}")
                     return order
             else:
                 # Open new position
@@ -339,7 +346,16 @@ class BinanceLiveTrader:
                     type=ORDER_TYPE_MARKET,
                     quantity=quantity,
                 )
-                logger.info(f"Order placed: {side} {quantity} BTC at ~${price:,.2f}")
+                order_id = str(order.get("orderId", ""))
+                import time; time.sleep(1)
+                try:
+                    filled_order = self.client.futures_get_order(symbol=self.symbol, orderId=order_id)
+                    if filled_order.get("status") != "FILLED":
+                        logger.error(f"Open order {order_id} not filled! Status: {filled_order.get('status')}")
+                        return None
+                except Exception as ve:
+                    logger.warning(f"Could not verify open order: {ve}")
+                logger.info(f"Order placed and verified: {side} {quantity} BTC at ~${price:,.2f}")
                 return order
 
         except Exception as e:
@@ -363,7 +379,17 @@ class BinanceLiveTrader:
                 pnl_pct = (price - self.entry_price) / self.entry_price * self.current_position * self.leverage * 100
                 pnl = balance * pnl_pct / 100
 
-            await self._place_order("", close=True)
+            close_result = await self._place_order("", close=True)
+            if close_result is None:
+                logger.error("Close order failed! Skipping state update — will retry next cycle.")
+                import asyncio
+                asyncio.get_event_loop().run_until_complete(
+                    self.telegram.send_status(
+                        f"⚠️ Failed to close position!\n"
+                        f"Will retry next cycle."
+                    )
+                )
+                return
 
             self.total_trades += 1
             if pnl > 0:
@@ -442,9 +468,63 @@ class BinanceLiveTrader:
                 "balance": balance,
             })
 
+    def _sync_position_with_binance(self):
+        """Sync internal position state with actual Binance position."""
+        if self.dry_run:
+            return
+        try:
+            pos = self._get_position()
+            actual_side = pos["side"]
+            actual_entry = pos["entry_price"]
+
+            if actual_side != self.current_position:
+                logger.warning(
+                    f"⚠️ Position mismatch! Engine thinks: {self.current_position}, "
+                    f"Binance actual: {actual_side}. Syncing..."
+                )
+                self.current_position = actual_side
+                self.entry_price = actual_entry
+                # Send Telegram alert
+                import asyncio
+                asyncio.get_event_loop().run_until_complete(
+                    self.telegram.send_status(
+                        f"⚠️ Position Sync Alert\n"
+                        f"Engine was out of sync with Binance!\n"
+                        f"Corrected to: {'LONG' if actual_side == 1 else 'SHORT' if actual_side == -1 else 'FLAT'}\n"
+                        f"Entry: ${actual_entry:,.2f}"
+                    )
+                )
+            else:
+                logger.info(f"Position sync OK: {actual_side} @ ${actual_entry:,.2f}")
+        except Exception as e:
+            logger.error(f"Position sync failed: {e}")
+
+    async def _verify_order_filled(self, order_id: str) -> bool:
+        """Verify an order actually filled on Binance."""
+        try:
+            import time
+            time.sleep(1)  # Give Binance a moment
+            order = self.client.futures_get_order(
+                symbol=self.symbol,
+                orderId=order_id
+            )
+            status = order.get("status", "")
+            if status == "FILLED":
+                logger.info(f"Order {order_id} confirmed FILLED")
+                return True
+            else:
+                logger.warning(f"Order {order_id} status: {status} — not filled!")
+                return False
+        except Exception as e:
+            logger.error(f"Order verification failed: {e}")
+            return False
+
     async def run_once(self):
         """Run a single trading cycle: fetch data → get action → execute."""
         logger.info("─── Trading Cycle ───")
+
+        # 0. Sync position with Binance before doing anything
+        self._sync_position_with_binance()
 
         # 1. Fetch latest features
         features, prices, feat_names = self._fetch_latest_features()
