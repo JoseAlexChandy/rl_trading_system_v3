@@ -489,15 +489,13 @@ class BinanceLiveTrader:
                 )
                 self.current_position = actual_side
                 self.entry_price = actual_entry
-                # Send Telegram alert
-                import asyncio
-                asyncio.get_event_loop().run_until_complete(
-                    self.telegram.send_status(
-                        f"⚠️ Position Sync Alert\n"
-                        f"Engine was out of sync with Binance!\n"
-                        f"Corrected to: {'LONG' if actual_side == 1 else 'SHORT' if actual_side == -1 else 'FLAT'}\n"
-                        f"Entry: ${actual_entry:,.2f}"
-                    )
+                # Log only — can't await in sync function
+                logger.warning(f"Position synced to: {actual_side} @ ${actual_entry:,.2f}")
+                self._pending_sync_alert = (
+                    f"⚠️ Position Sync Alert\n"
+                    f"Engine was out of sync with Binance!\n"
+                    f"Corrected to: {'LONG' if actual_side == 1 else 'SHORT' if actual_side == -1 else 'FLAT'}\n"
+                    f"Entry: ${actual_entry:,.2f}"
                 )
             else:
                 logger.info(f"Position sync OK: {actual_side} @ ${actual_entry:,.2f}")
@@ -528,8 +526,10 @@ class BinanceLiveTrader:
         """Run a single trading cycle: fetch data → get action → execute."""
         logger.info("─── Trading Cycle ───")
 
-        # 0. Sync position with Binance before doing anything
+        self._pending_sync_alert = None
         self._sync_position_with_binance()
+        if self._pending_sync_alert:
+            await self.telegram.send_status(self._pending_sync_alert)
 
         # 1. Fetch latest features
         features, prices, feat_names = self._fetch_latest_features()
