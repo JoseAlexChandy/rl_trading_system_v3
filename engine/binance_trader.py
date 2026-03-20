@@ -95,6 +95,7 @@ class TelegramSignalBot:
                 msg = (
                     f"{pnl_emoji} **{action} {side}** — {signal.get('symbol', SYMBOL)}\n"
                     f"━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"📊 Entry Price: `${signal.get('entry_price', 0):,.2f}`\n"
                     f"📊 Exit Price: `${signal.get('exit_price', 0):,.2f}`\n"
                     f"💰 P&L: `${pnl:+,.2f}` ({signal.get('pnl_pct', 0):+.1f}%)\n"
                     f"⏱ Duration: `{signal.get('duration', 'N/A')}`\n"
@@ -115,8 +116,7 @@ class TelegramSignalBot:
             )
             logger.info(f"Telegram signal sent: {action} {side}")
         except Exception as e:
-            logger.error(f"[ORDER ERROR] {type(e).__name__}: {e}", exc_info=True)
-            logger.error(f"Telegram send failed: {e}")
+            logger.error(f"Telegram send failed: {type(e).__name__}: {e}", exc_info=True)
 
     async def send_status(self, text: str):
         """Send a status update to the Telegram group."""
@@ -415,6 +415,7 @@ class BinanceLiveTrader:
                 "action": "CLOSE",
                 "side": "LONG" if self.current_position == 1 else "SHORT",
                 "symbol": self.symbol,
+                "entry_price": self.entry_price,
                 "exit_price": price,
                 "pnl": pnl,
                 "pnl_pct": pnl_pct,
